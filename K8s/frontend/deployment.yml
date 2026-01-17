@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: daybook-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: daybook-frontend
+  template:
+    metadata:
+      labels:
+        app: daybook-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: 0x1luffy/daybook-frontend:9b76f54e77b42fb17dfeb42c0e23185ab9500f75
+        ports:
+        - containerPort: 3000
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: daybook-config
+              key: NODE_ENV
+        - name: API_URL
+          value: "http://daybook-backend-service:5000"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: daybook-frontend-service
+spec:
+  selector:
+    app: daybook-frontend
+  ports:
+  - port: 3000
+    targetPort: 3000
+  type: NodePort

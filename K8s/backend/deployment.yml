@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: daybook-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: daybook-backend
+  template:
+    metadata:
+      labels:
+        app: daybook-backend
+    spec:
+      containers:
+      - name: backend
+        image: 0x1luffy/daybook-backend:9b76f54e77b42fb17dfeb42c0e23185ab9500f75
+        ports:
+        - containerPort: 5000
+        env:
+        - name: MONGO_URI
+          valueFrom:
+            secretKeyRef:
+              name: daybook-secret
+              key: MONGO_URI
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: daybook-secret
+              key: JWT_SECRET
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: daybook-config
+              key: NODE_ENV
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: daybook-backend-service
+spec:
+  selector:
+    app: daybook-backend
+  ports:
+  - port: 5000
+    targetPort: 5000
+  type: ClusterIP
