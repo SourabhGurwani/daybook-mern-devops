@@ -27,28 +27,23 @@ jobs:
           --health-retries 5
 
     steps:
-      # 1️⃣ Checkout repository
-      - name: Checkout code
+      # 1️⃣ Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       # 2️⃣ Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version: '18'
 
       # 3️⃣ SonarCloud Scan
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v5.0.0
+        uses: sonarsource/sonarcloud-github-action@master
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=0x1Luffy_Daybook-DevOps
-            -Dsonar.organization=0x1luffy
 
-      # 4️⃣ Pre-build Trivy scan
+      # 4️⃣ Trivy File System Scan
       - name: Trivy FS Scan
         uses: aquasecurity/trivy-action@0.18.0
         with:
@@ -56,105 +51,35 @@ jobs:
           scan-ref: .
           severity: HIGH,CRITICAL
           format: table
-          output: trivy-fs-report.txt
+          exit-code: 0
 
-      # 5️⃣ Build backend Docker image
-      - name: Build backend image
+      # 5️⃣ Build Backend Docker Image
+      - name: Build Backend Image
         run: docker build -t daybook-backend ./backend
 
-      # 6️⃣ Build frontend Docker image
-      - name: Build frontend image
+      # 6️⃣ Build Frontend Docker Image
+      - name: Build Frontend Image
         run: |
           docker build \
-            --build-arg NGINX_CONF=nginx.conf \
-            --build-arg VITE_BACKEND_URL=${{ secrets.PROD_API_URL }} \
+            --build-arg VITE_BACKEND_URL=http://localhost:3000 \
             -t daybook-frontend ./frontend
 
-      # 7️⃣ Trivy Scan (backend image)
-      - name: Trivy Scan Backend
+      # 7️⃣ Trivy Scan Backend Image
+      - name: Trivy Backend Image Scan
         uses: aquasecurity/trivy-action@0.18.0
         with:
           scan-type: image
           image-ref: daybook-backend
           severity: HIGH,CRITICAL
           format: table
-          output: trivy-backend-report.txt
+          exit-code: 0
 
-      # 8️⃣ Trivy Scan (frontend image)
-      - name: Trivy Scan Frontend
+      # 8️⃣ Trivy Scan Frontend Image
+      - name: Trivy Frontend Image Scan
         uses: aquasecurity/trivy-action@0.18.0
         with:
           scan-type: image
           image-ref: daybook-frontend
           severity: HIGH,CRITICAL
           format: table
-          output: trivy-frontend-report.txt
-
-      # 9️⃣ Upload Trivy Reports
-      - name: Upload Trivy Reports
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-reports
-          path: |
-            trivy-fs-report.txt
-            trivy-backend-report.txt
-            trivy-frontend-report.txt
-
-      # 🔟 Log in to Docker Hub
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      # 1️⃣1️⃣ Push backend image with commit SHA tag
-      - name: Push backend image
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker tag daybook-backend ${{ secrets.DOCKER_USERNAME }}/daybook-backend:$IMAGE_TAG
-          docker push ${{ secrets.DOCKER_USERNAME }}/daybook-backend:$IMAGE_TAG
-
-      # 1️⃣2️⃣ Push frontend image with commit SHA tag
-      - name: Push frontend image
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          docker tag daybook-frontend ${{ secrets.DOCKER_USERNAME }}/daybook-frontend:$IMAGE_TAG
-          docker push ${{ secrets.DOCKER_USERNAME }}/daybook-frontend:$IMAGE_TAG
-
-    # 1️⃣6️⃣ Deploy backend to Render with new tag
-   #   - name: Deploy backend to Render
-    #    env:
-    #      RENDER_HOOK: ${{ secrets.RENDER_BACKEND_HOOK }}
-     #     IMG: docker.io/${{ secrets.DOCKER_USERNAME }}/daybook-backend:${{ github.sha }}
-     #   run: |
-     #    curl -fsSLG "$RENDER_HOOK" \
-     #     --data-urlencode "imgURL=$IMG"
-
-          
-      # 1️⃣6️⃣ Deploy frontend to Render with new tag
-      - name: Deploy frontend to Render
-        env:
-          RENDER_HOOK: ${{ secrets.RENDER_FRONTEND_HOOK }}
-          IMG: docker.io/${{ secrets.DOCKER_USERNAME }}/daybook-frontend:${{ github.sha }}
-        run: |
-         curl -fsSLG "$RENDER_HOOK" \
-          --data-urlencode "imgURL=$IMG"
-
-
-      # 1️⃣3️⃣ Update K8s manifests with new image tags
-      - name: Update Kubernetes Manifests
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          sed -i "s|image: .*/daybook-frontend.*|image: ${{ secrets.DOCKER_USERNAME }}/daybook-frontend:$IMAGE_TAG|" ./K8s/frontend/deployment.yml
-          sed -i "s|image: .*/daybook-backend.*|image: ${{ secrets.DOCKER_USERNAME }}/daybook-backend:$IMAGE_TAG|" ./K8s/backend/deployment.yml
-
-      # 1️⃣4️⃣ Commit and push manifest changes
-      - name: Commit manifest updates
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add ./K8s/frontend/deployment.yml ./K8s/backend/deployment.yml
-          git commit -m "Update K8s manifests with image tag ${{ github.sha }}" || echo "No changes to commit"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.DAYBOOK_GITHUB_TOKEN }}
+          exit-code: 0
